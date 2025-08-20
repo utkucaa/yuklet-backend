@@ -13,7 +13,6 @@ public class TransportOfferDto {
     private Long id;
     private Long carrierId;
     
-    @NotNull
     private Long vehicleId;
     
     @NotBlank

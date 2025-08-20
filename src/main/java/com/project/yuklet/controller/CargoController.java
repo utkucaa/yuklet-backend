@@ -2,6 +2,7 @@ package com.project.yuklet.controller;
 
 import com.project.yuklet.dto.ApiResponse;
 import com.project.yuklet.dto.CargoRequestDto;
+import com.project.yuklet.dto.CargoRequestWithShipperDto;
 import com.project.yuklet.entities.CargoRequest;
 import com.project.yuklet.services.CargoService;
 import jakarta.validation.Valid;
@@ -63,6 +64,12 @@ public class CargoController {
     @GetMapping("/{cargoId}")
     public ResponseEntity<ApiResponse<CargoRequest>> getCargoRequest(@PathVariable Long cargoId) {
         CargoRequest cargoRequest = cargoService.getCargoRequest(cargoId);
+        return ResponseEntity.ok(ApiResponse.success(cargoRequest));
+    }
+    
+    @GetMapping("/{cargoId}/with-shipper")
+    public ResponseEntity<ApiResponse<CargoRequestWithShipperDto>> getCargoRequestWithShipper(@PathVariable Long cargoId) {
+        CargoRequestWithShipperDto cargoRequest = cargoService.getCargoRequestWithShipper(cargoId);
         return ResponseEntity.ok(ApiResponse.success(cargoRequest));
     }
     

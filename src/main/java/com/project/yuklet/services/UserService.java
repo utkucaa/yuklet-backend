@@ -73,4 +73,9 @@ public class UserService {
     public List<UserProfile> searchUsersByCompany(String companyName) {
         return userProfileRepository.findByCompanyNameContainingIgnoreCase(companyName);
     }
+    
+    public User getUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
 }

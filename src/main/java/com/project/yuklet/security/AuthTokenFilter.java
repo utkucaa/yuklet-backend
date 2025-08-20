@@ -24,6 +24,21 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     private UserDetailsService userDetailsService;
     
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        // Health endpoint'lerini JWT filter'dan muaf tut
+        return path.startsWith("/public/") ||
+               path.startsWith("/api/health/") || 
+               path.startsWith("/api/auth/") ||
+               path.startsWith("/api/public/") ||
+               path.equals("/chat-test.html") ||
+               path.startsWith("/static/") ||
+               path.startsWith("/webjars/") ||
+               path.startsWith("/chat/") ||
+               path.equals("/error");
+    }
+    
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {

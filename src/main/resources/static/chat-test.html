@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSocket Chat Test</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }
+        .row { margin-bottom: 12px; }
+        label { display: inline-block; width: 140px; }
+        input, button { padding: 8px; }
+        #log { border: 1px solid #ddd; padding: 12px; height: 300px; overflow: auto; background: #fafafa; }
+        .msg { margin: 4px 0; }
+        .msg time { color: #888; font-size: 12px; margin-left: 6px; }
+        .ok { color: #0a7; }
+        .err { color: #c22; }
+        .warn { color: #f80; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .connection-status { padding: 8px; margin: 8px 0; border-radius: 4px; }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .connecting { background: #fff3cd; color: #856404; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</head>
+<body>
+    <h2>WebSocket/STOMP Chat Test</h2>
+
+    <div id="connectionStatus" class="connection-status disconnected">
+        🔴 Bağlantı Yok
+    </div>
+
+    <div class="row">
+        <label>API URL:</label>
+        <input id="apiBase" value="http://localhost:8080" />
+    </div>
+    <div class="row">
+        <label>Email:</label>
+        <input id="email" placeholder="user@example.com" />
+    </div>
+    <div class="row">
+        <label>Şifre:</label>
+        <input id="password" type="password" placeholder="******" />
+        <button id="loginBtn">Giriş Yap</button>
+    </div>
+    <div class="row">
+        <button id="connectBtn" disabled>WS Bağlan</button>
+        <button id="disconnectBtn" disabled>Bağlantıyı Kes</button>
+    </div>
+
+    <div class="row">
+        <label>Genel Topic:</label>
+        <code>/topic/messages</code>
+        <button id="subscribeGeneralBtn" disabled>Genel'e Abone Ol</button>
+    </div>
+
+    <div class="row">
+        <label>Konu (topic) adı:</label>
+        <input id="topicName" placeholder="conversation-123" />
+        <button id="subscribeTopicBtn" disabled>Bu Topic'e Abone Ol</button>
+    </div>
+
+    <div class="row">
+        <label>Gönderici (sender):</label>
+        <input id="sender" placeholder="(login sonrası otomatik dolar)" />
+    </div>
+    <div class="row">
+        <label>Mesaj (content):</label>
+        <input id="content" placeholder="Merhaba" />
+    </div>
+
+    <div class="row">
+        <button id="sendGeneralBtn" disabled>Genel'e Gönder (/chat/send)</button>
+        <button id="sendTopicBtn" disabled>Topic'e Gönder (/chat/sendTo/{topic})</button>
+    </div>
+
+    <h3>Log</h3>
+    <div id="log"></div>
+
+    <script>
+        let stompClient = null;
+        let jwtToken = null;
+        let currentProfile = null;
+        let isConnected = false;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 3;
+
+        const $ = (id) => document.getElementById(id);
+        const log = (msg, cls) => {
+            const div = document.createElement('div');
+            div.className = 'msg' + (cls ? ' ' + cls : '');
+            div.innerHTML = msg;
+            $('log').appendChild(div);
+            $('log').scrollTop = $('log').scrollHeight;
+        };
+
+        const updateConnectionStatus = (status, message) => {
+            const statusEl = $('connectionStatus');
+            statusEl.className = 'connection-status ' + status;
+            statusEl.innerHTML = message;
+        };
+
+        const setConnected = (connected) => {
+            isConnected = connected;
+            $('connectBtn').disabled = connected;
+            $('disconnectBtn').disabled = !connected;
+            $('subscribeGeneralBtn').disabled = !connected;
+            $('subscribeTopicBtn').disabled = !connected;
+            $('sendGeneralBtn').disabled = !connected;
+            $('sendTopicBtn').disabled = !connected;
+            
+            if (connected) {
+                updateConnectionStatus('connected', '🟢 Bağlı');
+                reconnectAttempts = 0;
+            } else {
+                updateConnectionStatus('disconnected', '🔴 Bağlantı Yok');
+            }
+        };
+
+        $('loginBtn').addEventListener('click', async () => {
+            const base = $('apiBase').value.trim();
+            const email = $('email').value.trim();
+            const password = $('password').value;
+            
+            if (!email || !password) {
+                log('Email ve şifre gerekli', 'err');
+                return;
+            }
+            
+            try {
+                $('loginBtn').disabled = true;
+                $('loginBtn').textContent = 'Giriş yapılıyor...';
+                
+                const res = await fetch(base + '/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                }
+                
+                const json = await res.json();
+                if (!json.success) throw new Error(json.message || 'Login failed');
+                
+                jwtToken = json.data.token;
+                log('Giriş başarılı. Token alındı', 'ok');
+                
+                // Profil bilgisi çek
+                try {
+                    const me = await fetch(base + '/api/users/profile', {
+                        headers: { 'Authorization': 'Bearer ' + jwtToken }
+                    }).then(r => r.json());
+                    
+                    if (me.success && me.data) {
+                        currentProfile = me.data;
+                        const fullName = [currentProfile.firstName||'', currentProfile.lastName||''].join(' ').trim();
+                        if (fullName) $('sender').value = fullName;
+                        log('Profil bilgisi alındı: ' + fullName, 'ok');
+                    }
+                } catch (profileError) {
+                    log('Profil bilgisi alınamadı: ' + profileError.message, 'warn');
+                }
+                
+                $('connectBtn').disabled = false;
+            } catch (e) {
+                log('Login hatası: ' + e.message, 'err');
+            } finally {
+                $('loginBtn').disabled = false;
+                $('loginBtn').textContent = 'Giriş Yap';
+            }
+        });
+
+        $('connectBtn').addEventListener('click', () => {
+            if (!jwtToken) {
+                log('Önce giriş yapın', 'err');
+                return;
+            }
+            
+            const base = $('apiBase').value.trim();
+            updateConnectionStatus('connecting', '🟡 Bağlanıyor...');
+            
+            try {
+                const socket = new SockJS(base + '/chat');
+                stompClient = Stomp.over(socket);
+                
+                // Debug'u kapat
+                stompClient.debug = null;
+                
+                const headers = { Authorization: 'Bearer ' + jwtToken };
+                
+                stompClient.connect(headers, (frame) => {
+                    log('Bağlandı: ' + frame, 'ok');
+                    setConnected(true);
+                    reconnectAttempts = 0;
+                }, (err) => {
+                    log('Bağlantı hatası: ' + err, 'err');
+                    setConnected(false);
+                    
+                    // Otomatik yeniden bağlanma
+                    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                        reconnectAttempts++;
+                        log(`Yeniden bağlanma denemesi ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}...`, 'warn');
+                        setTimeout(() => {
+                            if (!isConnected) {
+                                $('connectBtn').click();
+                            }
+                        }, 2000);
+                    } else {
+                        log('Maksimum yeniden bağlanma denemesi aşıldı', 'err');
+                    }
+                });
+            } catch (e) {
+                log('WebSocket bağlantı hatası: ' + e.message, 'err');
+                setConnected(false);
+            }
+        });
+
+        $('disconnectBtn').addEventListener('click', () => {
+            if (stompClient) {
+                try {
+                    stompClient.disconnect(() => {
+                        log('Bağlantı kapatıldı', 'ok');
+                        setConnected(false);
+                    });
+                } catch (e) {
+                    log('Bağlantı kapatma hatası: ' + e.message, 'err');
+                } finally {
+                    stompClient = null;
+                    setConnected(false);
+                }
+            }
+        });
+
+        $('subscribeGeneralBtn').addEventListener('click', () => {
+            if (!stompClient || !isConnected) {
+                log('Önce WebSocket bağlantısı kurun', 'err');
+                return;
+            }
+            
+            try {
+                stompClient.subscribe('/topic/messages', (message) => {
+                    try {
+                        const body = JSON.parse(message.body);
+                        log('Genel Mesaj: <b>' + (body.sender||'?') + ':</b> ' + body.content + ' <time>' + body.timestamp + '</time>');
+                    } catch (e) {
+                        log('Mesaj parse hatası: ' + e.message, 'err');
+                    }
+                });
+                log('Genel topic\'e abone olundu', 'ok');
+            } catch (e) {
+                log('Topic abonelik hatası: ' + e.message, 'err');
+            }
+        });
+
+        $('subscribeTopicBtn').addEventListener('click', () => {
+            if (!stompClient || !isConnected) {
+                log('Önce WebSocket bağlantısı kurun', 'err');
+                return;
+            }
+            
+            const topic = $('topicName').value.trim();
+            if (!topic) { 
+                log('Topic adı boş olamaz', 'err'); 
+                return; 
+            }
+            
+            try {
+                stompClient.subscribe('/topic/' + topic, (message) => {
+                    try {
+                        const body = JSON.parse(message.body);
+                        log('[' + topic + '] <b>' + (body.sender||'?') + ':</b> ' + body.content + ' <time>' + body.timestamp + '</time>');
+                    } catch (e) {
+                        log('Mesaj parse hatası: ' + e.message, 'err');
+                    }
+                });
+                log('Topic\'e abone olundu: ' + topic, 'ok');
+            } catch (e) {
+                log('Topic abonelik hatası: ' + e.message, 'err');
+            }
+        });
+
+        $('sendGeneralBtn').addEventListener('click', () => {
+            if (!stompClient || !isConnected) {
+                log('Önce WebSocket bağlantısı kurun', 'err');
+                return;
+            }
+            
+            const content = $('content').value.trim();
+            if (!content) {
+                log('Mesaj içeriği boş olamaz', 'err');
+                return;
+            }
+            
+            try {
+                const payload = {
+                    sender: $('sender').value || undefined,
+                    content: content
+                };
+                stompClient.send('/chat/send', {}, JSON.stringify(payload));
+                log('Genel\'e gönderildi: ' + JSON.stringify(payload), 'ok');
+                $('content').value = '';
+            } catch (e) {
+                log('Mesaj gönderme hatası: ' + e.message, 'err');
+            }
+        });
+
+        $('sendTopicBtn').addEventListener('click', () => {
+            if (!stompClient || !isConnected) {
+                log('Önce WebSocket bağlantısı kurun', 'err');
+                return;
+            }
+            
+            const topic = $('topicName').value.trim();
+            if (!topic) { 
+                log('Topic adı boş olamaz', 'err'); 
+                return; 
+            }
+            
+            const content = $('content').value.trim();
+            if (!content) {
+                log('Mesaj içeriği boş olamaz', 'err');
+                return;
+            }
+            
+            try {
+                const payload = {
+                    sender: $('sender').value || undefined,
+                    content: content
+                };
+                stompClient.send('/chat/sendTo/' + topic, {}, JSON.stringify(payload));
+                log('Topic\'e gönderildi [' + topic + ']: ' + JSON.stringify(payload), 'ok');
+                $('content').value = '';
+            } catch (e) {
+                log('Mesaj gönderme hatası: ' + e.message, 'err');
+            }
+        });
+
+        // Enter tuşu ile mesaj gönderme
+        $('content').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if ($('sendTopicBtn').disabled === false) {
+                    $('sendTopicBtn').click();
+                } else if ($('sendGeneralBtn').disabled === false) {
+                    $('sendGeneralBtn').click();
+                }
+            }
+        });
+
+        // Sayfa yüklendiğinde log temizle
+        window.addEventListener('load', () => {
+            log('Chat test sayfası yüklendi. Önce giriş yapın.', 'ok');
+        });
+    </script>
+</body>
+</html>
+
+

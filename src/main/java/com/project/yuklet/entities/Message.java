@@ -17,7 +17,7 @@ public class Message {
     @Column(name = "sender_id")
     private Long senderId;
     
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "content", columnDefinition = "TEXT")
     private String content;
     
     @Enumerated(EnumType.STRING)
@@ -32,6 +32,12 @@ public class Message {
     
     public Message() {}
     
+    public Message(Long conversationId, Long senderId, String content) {
+        this.conversationId = conversationId;
+        this.senderId = senderId;
+        this.content = content;
+    }
+    
     public Message(Long conversationId, Long senderId, String content, MessageType messageType) {
         this.conversationId = conversationId;
         this.senderId = senderId;
@@ -39,7 +45,7 @@ public class Message {
         this.messageType = messageType;
     }
     
-        
+    // Getters and Setters
     public Long getId() {
         return id;
     }

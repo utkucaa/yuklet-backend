@@ -8,6 +8,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -47,5 +51,20 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Boolean>> validateResetToken(@RequestParam String token) {
         boolean isValid = passwordResetService.validateResetToken(token);
         return ResponseEntity.ok(ApiResponse.success(isValid));
+    }
+
+    @GetMapping("/test")
+    public ResponseEntity<ApiResponse<String>> test() {
+        return ResponseEntity.ok(ApiResponse.success("Backend çalışıyor!"));
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> healthCheck() {
+        Map<String, Object> health = new HashMap<>();
+        health.put("status", "UP");
+        health.put("timestamp", Instant.now());
+        health.put("service", "Yüklet API");
+        health.put("version", "1.0.0");
+        return ResponseEntity.ok(ApiResponse.success(health));
     }
 }

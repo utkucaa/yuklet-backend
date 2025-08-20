@@ -1,6 +1,7 @@
 package com.project.yuklet.services;
 
 import com.project.yuklet.dto.CargoRequestDto;
+import com.project.yuklet.dto.CargoRequestWithShipperDto;
 import com.project.yuklet.entities.CargoRequest;
 import com.project.yuklet.entities.RequestStatus;
 import com.project.yuklet.entities.User;
@@ -8,6 +9,7 @@ import com.project.yuklet.entities.UserType;
 import com.project.yuklet.exception.ResourceNotFoundException;
 import com.project.yuklet.exception.UnauthorizedException;
 import com.project.yuklet.reporsitory.CargoRequestRepository;
+import com.project.yuklet.entities.UserProfile;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -110,6 +112,52 @@ public class CargoService {
     public CargoRequest getCargoRequest(Long cargoId) {
         return cargoRequestRepository.findById(cargoId)
                 .orElseThrow(() -> new ResourceNotFoundException("CargoRequest", "id", cargoId));
+    }
+    
+    public CargoRequestWithShipperDto getCargoRequestWithShipper(Long cargoId) {
+        CargoRequest cargoRequest = cargoRequestRepository.findById(cargoId)
+                .orElseThrow(() -> new ResourceNotFoundException("CargoRequest", "id", cargoId));
+        
+        CargoRequestWithShipperDto dto = new CargoRequestWithShipperDto();
+        
+        // Copy cargo request data
+        dto.setId(cargoRequest.getId());
+        dto.setShipperId(cargoRequest.getShipperId());
+        dto.setTitle(cargoRequest.getTitle());
+        dto.setDescription(cargoRequest.getDescription());
+        dto.setCargoType(cargoRequest.getCargoType());
+        dto.setWeightKg(cargoRequest.getWeightKg());
+        dto.setPickupCity(cargoRequest.getPickupCity());
+        dto.setPickupAddress(cargoRequest.getPickupAddress());
+        dto.setDeliveryCity(cargoRequest.getDeliveryCity());
+        dto.setDeliveryAddress(cargoRequest.getDeliveryAddress());
+        dto.setPickupDate(cargoRequest.getPickupDate());
+        dto.setDeliveryDate(cargoRequest.getDeliveryDate());
+        dto.setBudgetMin(cargoRequest.getBudgetMin());
+        dto.setBudgetMax(cargoRequest.getBudgetMax());
+        dto.setStatus(cargoRequest.getStatus());
+        dto.setCreatedDate(cargoRequest.getCreatedDate());
+        
+        // Get shipper information
+        try {
+            User shipper = userService.getUserById(cargoRequest.getShipperId());
+            dto.setShipperEmail(shipper.getEmail());
+            
+            UserProfile shipperProfile = userService.getUserProfile(cargoRequest.getShipperId());
+            String firstName = shipperProfile.getFirstName() != null ? shipperProfile.getFirstName() : "";
+            String lastName = shipperProfile.getLastName() != null ? shipperProfile.getLastName() : "";
+            String fullName = (firstName + " " + lastName).trim();
+            
+            dto.setShipperName(fullName.isEmpty() ? shipper.getEmail() : fullName);
+            dto.setShipperCompany(shipperProfile.getCompanyName());
+        } catch (Exception e) {
+            // If shipper profile not found, use email as name
+            dto.setShipperName("Bilinmeyen Kullanıcı");
+            dto.setShipperEmail("N/A");
+            dto.setShipperCompany("N/A");
+        }
+        
+        return dto;
     }
     
     public void cancelCargoRequest(Long cargoId) {
