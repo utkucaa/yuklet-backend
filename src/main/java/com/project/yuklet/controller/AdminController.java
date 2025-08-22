@@ -137,6 +137,12 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(overview));
     }
     
+    @GetMapping("/stats/dashboard")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getDashboardStats() {
+        Map<String, Object> dashboardStats = adminService.getDashboardStats();
+        return ResponseEntity.ok(ApiResponse.success(dashboardStats));
+    }
+    
     @GetMapping("/stats/users")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getUserStats() {
         Map<String, Object> userStats = adminService.getUserStats();

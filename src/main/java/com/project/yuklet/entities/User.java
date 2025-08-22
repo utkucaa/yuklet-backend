@@ -43,6 +43,9 @@ public class User implements UserDetails {
     @Column(name = "created_date")
     private LocalDateTime createdDate = LocalDateTime.now();
     
+    @Column(name = "last_login_date")
+    private LocalDateTime lastLoginDate;
+    
     public User() {}
     
     public User(String email, String password, String phone, UserType userType) {
@@ -137,5 +140,13 @@ public class User implements UserDetails {
     
     public void setCreatedDate(LocalDateTime createdDate) {
         this.createdDate = createdDate;
+    }
+    
+    public LocalDateTime getLastLoginDate() {
+        return lastLoginDate;
+    }
+    
+    public void setLastLoginDate(LocalDateTime lastLoginDate) {
+        this.lastLoginDate = lastLoginDate;
     }
 }

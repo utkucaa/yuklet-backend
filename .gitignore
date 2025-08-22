@@ -49,3 +49,5 @@ uploads/
 ### Database ###
 *.sql
 *.db
+
+*.md

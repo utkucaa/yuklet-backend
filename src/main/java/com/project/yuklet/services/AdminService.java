@@ -152,13 +152,81 @@ public class AdminService {
         long totalTransportOffers = transportOfferRepository.count();
         long pendingVerifications = userVerificationRepository.findByStatus(VerificationStatus.PENDING).size();
         
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        long activeUsers = userRepository.findAll().stream()
+                .filter(user -> user.getLastLoginDate() != null && user.getLastLoginDate().isAfter(thirtyDaysAgo))
+                .count();
+        
+        LocalDateTime today = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+        LocalDateTime tomorrow = today.plusDays(1);
+        long newUsersToday = userRepository.findAll().stream()
+                .filter(user -> user.getCreatedDate().isAfter(today) && user.getCreatedDate().isBefore(tomorrow))
+                .count();
+        
+        long newCargoRequestsToday = cargoRequestRepository.findAll().stream()
+                .filter(request -> request.getCreatedDate().isAfter(today) && request.getCreatedDate().isBefore(tomorrow))
+                .count();
+        
+        long newTransportOffersToday = transportOfferRepository.findAll().stream()
+                .filter(offer -> offer.getCreatedDate().isAfter(today) && offer.getCreatedDate().isBefore(tomorrow))
+                .count();
+        
         overview.put("totalUsers", totalUsers);
+        overview.put("activeUsers", activeUsers);
+        overview.put("newUsersToday", newUsersToday);
         overview.put("totalCargoRequests", totalCargoRequests);
+        overview.put("newCargoRequestsToday", newCargoRequestsToday);
         overview.put("totalTransportOffers", totalTransportOffers);
+        overview.put("newTransportOffersToday", newTransportOffersToday);
         overview.put("pendingVerifications", pendingVerifications);
         overview.put("lastUpdated", LocalDateTime.now());
         
         return overview;
+    }
+    
+    public Map<String, Object> getDashboardStats() {
+        Map<String, Object> dashboardStats = new HashMap<>();
+        
+        
+        long totalUsers = userRepository.count();
+        long totalCargoRequests = cargoRequestRepository.count();
+        long totalTransportOffers = transportOfferRepository.count();
+        long pendingVerifications = userVerificationRepository.findByStatus(VerificationStatus.PENDING).size();
+        
+        LocalDateTime today = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+        LocalDateTime tomorrow = today.plusDays(1);
+        long newUsersToday = userRepository.findAll().stream()
+                .filter(user -> user.getCreatedDate().isAfter(today) && user.getCreatedDate().isBefore(tomorrow))
+                .count();
+        
+        long newCargoRequestsToday = cargoRequestRepository.findAll().stream()
+                .filter(request -> request.getCreatedDate().isAfter(today) && request.getCreatedDate().isBefore(tomorrow))
+                .count();
+        
+        long newTransportOffersToday = transportOfferRepository.findAll().stream()
+                .filter(offer -> offer.getCreatedDate().isAfter(today) && offer.getCreatedDate().isBefore(tomorrow))
+                .count();
+        
+        long carriers = userRepository.findByUserType(UserType.CARRIER).size();
+        long shippers = userRepository.findByUserType(UserType.SHIPPER).size();
+                    
+        long activeCargoRequests = cargoRequestRepository.findByStatus(RequestStatus.ACTIVE).size();
+        long activeTransportOffers = transportOfferRepository.findByStatus(RequestStatus.ACTIVE).size();
+        
+        dashboardStats.put("totalUsers", totalUsers);
+        dashboardStats.put("totalCargoRequests", totalCargoRequests);
+        dashboardStats.put("totalTransportOffers", totalTransportOffers);
+        dashboardStats.put("pendingVerifications", pendingVerifications);
+        dashboardStats.put("newUsersToday", newUsersToday);
+        dashboardStats.put("newCargoRequestsToday", newCargoRequestsToday);
+        dashboardStats.put("newTransportOffersToday", newTransportOffersToday);
+        dashboardStats.put("carriers", carriers);
+        dashboardStats.put("shippers", shippers);
+        dashboardStats.put("activeCargoRequests", activeCargoRequests);
+        dashboardStats.put("activeTransportOffers", activeTransportOffers);
+        dashboardStats.put("lastUpdated", LocalDateTime.now());
+        
+        return dashboardStats;
     }
     
     public Map<String, Object> getUserStats() {
